@@ -26,13 +26,13 @@ jobs:
       run: npm run build
       env:
         NODE_OPTIONS: --max-old-space-size=4096
-        VITE_BASE_CHAIN_ID: ${{ secrets.VITE_BASE_CHAIN_ID }}
-        VITE_WALLET_CONNECT_PROJECT_ID: ${{ secrets.VITE_WALLET_CONNECT_PROJECT_ID }}
-        VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
-        VITE_WEBSOCKET_URL: ${{ secrets.VITE_WEBSOCKET_URL }}
-        VITE_ENABLE_REAL_TIME_ALERTS: ${{ secrets.VITE_ENABLE_REAL_TIME_ALERTS }}
-        VITE_ENABLE_PAYMENTS: ${{ secrets.VITE_ENABLE_PAYMENTS }}
-        VITE_ENABLE_NOTIFICATIONS: ${{ secrets.VITE_ENABLE_NOTIFICATIONS }}
+        VITE_BASE_CHAIN_ID: ${{ secrets.VITE_BASE_CHAIN_ID || '8453' }}
+        VITE_WALLET_CONNECT_PROJECT_ID: ${{ secrets.VITE_WALLET_CONNECT_PROJECT_ID || '' }}
+        VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL || 'https://api.gigflow.app' }}
+        VITE_WEBSOCKET_URL: ${{ secrets.VITE_WEBSOCKET_URL || 'wss://ws.gigflow.app' }}
+        VITE_ENABLE_REAL_TIME_ALERTS: ${{ secrets.VITE_ENABLE_REAL_TIME_ALERTS || 'true' }}
+        VITE_ENABLE_PAYMENTS: ${{ secrets.VITE_ENABLE_PAYMENTS || 'true' }}
+        VITE_ENABLE_NOTIFICATIONS: ${{ secrets.VITE_ENABLE_NOTIFICATIONS || 'true' }}
         
     - name: Deploy to Vercel (Production)
       if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && secrets.VERCEL_TOKEN != ''

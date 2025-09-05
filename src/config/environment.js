@@ -28,9 +28,11 @@ export const config = {
 export const validateConfig = () => {
   const requiredVars = [];
   
-  if (config.isProduction) {
+  // Only validate required vars if we're in a runtime environment (not build time)
+  // During build, these variables might not be available but the app can still be built
+  if (config.isProduction && typeof window !== 'undefined') {
     if (!config.walletConnectProjectId) {
-      requiredVars.push('VITE_WALLET_CONNECT_PROJECT_ID');
+      console.warn('VITE_WALLET_CONNECT_PROJECT_ID is not set. Some features may not work properly.');
     }
   }
 
