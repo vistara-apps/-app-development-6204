@@ -1,53 +1,129 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import AppShell from './components/AppShell.jsx';
 import Dashboard from './components/Dashboard.jsx';
 import GigFeed from './components/GigFeed.jsx';
 import ApplicationTracker from './components/ApplicationTracker.jsx';
 import ProfileForm from './components/ProfileForm.jsx';
+import Settings from './components/Settings.jsx';
+import ErrorBoundary from './components/ErrorBoundary.jsx';
+import NotificationSystem from './components/NotificationSystem.jsx';
+import LoadingSpinner from './components/LoadingSpinner.jsx';
 import { mockUser, mockGigs, mockApplications } from './data/mockData.js';
 import { GigStatus } from './types/index.js';
+import { useNotifications } from './hooks/useNotifications.js';
+import { useRealTimeGigs } from './hooks/useRealTimeGigs.js';
+import { gigService } from './services/gigService.js';
+import { config, validateConfig } from './config/environment.js';
 
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [user, setUser] = useState(mockUser);
-  const [gigs, setGigs] = useState(mockGigs);
+  const [gigs, setGigs] = useState([]);
   const [applications, setApplications] = useState(mockApplications);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // Handle gig application
-  const handleApplyToGig = (gig) => {
-    const newApplication = {
-      id: `app-${Date.now()}`,
-      userId: user.farcasterId,
-      gigId: gig.id,
-      applicationDate: new Date().toISOString().split('T')[0],
-      status: GigStatus.APPLIED,
-      notes: `Applied to ${gig.title}`,
-      url: gig.url
+  const { showApplicationSuccess, showProfileUpdate, showError, showGigAlert } = useNotifications();
+
+  // Handle new gigs from real-time alerts
+  const handleNewGig = (newGig) => {
+    setGigs(prev => {
+      // Check if gig already exists
+      const exists = prev.some(gig => gig.id === newGig.id);
+      if (!exists) {
+        return [newGig, ...prev];
+      }
+      return prev;
+    });
+  };
+
+  // Handle application updates from real-time alerts
+  const handleApplicationUpdate = (updateData) => {
+    setApplications(prev => 
+      prev.map(app => 
+        app.id === updateData.applicationId 
+          ? { ...app, status: updateData.status, notes: updateData.notes || app.notes }
+          : app
+      )
+    );
+  };
+
+  // Set up real-time gig alerts
+  const { isConnected: wsConnected } = useRealTimeGigs(
+    user, 
+    handleNewGig, 
+    handleApplicationUpdate
+  );
+
+  // Initialize app and validate configuration
+  useEffect(() => {
+    const initializeApp = async () => {
+      try {
+        // Validate environment configuration
+        validateConfig();
+        
+        // Load initial gigs with user matching
+        const matchingGigs = await gigService.getMatchingGigs(user);
+        setGigs(matchingGigs);
+        
+        setIsLoading(false);
+      } catch (err) {
+        console.error('Failed to initialize app:', err);
+        setError(err.message);
+        setIsLoading(false);
+        
+        // Fallback to mock data
+        const matchingGigs = gigService.calculateMatches(mockGigs, user);
+        setGigs(matchingGigs);
+      }
     };
 
-    setApplications(prev => [...prev, newApplication]);
-    
-    // Open the gig URL in a new tab
-    window.open(gig.url, '_blank');
-    
-    // Show success message (you could implement a toast notification here)
-    alert(`Successfully applied to "${gig.title}"! The job page has been opened in a new tab.`);
+    initializeApp();
+  }, [user]);
+
+  // Handle gig application
+  const handleApplyToGig = async (gig) => {
+    try {
+      const newApplication = {
+        id: `app-${Date.now()}`,
+        userId: user.farcasterId,
+        gigId: gig.id,
+        applicationDate: new Date().toISOString().split('T')[0],
+        status: GigStatus.APPLIED,
+        notes: `Applied to ${gig.title}`,
+        url: gig.url
+      };
+
+      setApplications(prev => [...prev, newApplication]);
+      
+      // Open the gig URL in a new tab
+      window.open(gig.url, '_blank');
+      
+      // Show success notification
+      showApplicationSuccess(gig.title);
+    } catch (err) {
+      showError('Failed to apply to gig. Please try again.');
+    }
   };
 
   // Handle saving a gig
-  const handleSaveGig = (gig) => {
-    const newApplication = {
-      id: `save-${Date.now()}`,
-      userId: user.farcasterId,
-      gigId: gig.id,
-      applicationDate: new Date().toISOString().split('T')[0],
-      status: GigStatus.SAVED,
-      notes: 'Saved for later',
-      url: gig.url
-    };
+  const handleSaveGig = async (gig) => {
+    try {
+      const newApplication = {
+        id: `save-${Date.now()}`,
+        userId: user.farcasterId,
+        gigId: gig.id,
+        applicationDate: new Date().toISOString().split('T')[0],
+        status: GigStatus.SAVED,
+        notes: 'Saved for later',
+        url: gig.url
+      };
 
-    setApplications(prev => [...prev, newApplication]);
-    alert(`"${gig.title}" has been saved to your applications!`);
+      setApplications(prev => [...prev, newApplication]);
+      showApplicationSuccess(`"${gig.title}" has been saved!`);
+    } catch (err) {
+      showError('Failed to save gig. Please try again.');
+    }
   };
 
   // Handle updating application
@@ -60,12 +136,21 @@ function App() {
   };
 
   // Handle profile update
-  const handleUpdateProfile = (updatedProfile) => {
-    setUser(prev => ({
-      ...prev,
-      ...updatedProfile
-    }));
-    alert('Profile updated successfully!');
+  const handleUpdateProfile = async (updatedProfile) => {
+    try {
+      setUser(prev => ({
+        ...prev,
+        ...updatedProfile
+      }));
+      
+      // Refresh gigs with new user profile
+      const matchingGigs = await gigService.getMatchingGigs({ ...user, ...updatedProfile });
+      setGigs(matchingGigs);
+      
+      showProfileUpdate();
+    } catch (err) {
+      showError('Failed to update profile. Please try again.');
+    }
   };
 
   // Render current tab content
@@ -106,20 +191,38 @@ function App() {
         );
       case 'settings':
         return (
-          <div className="bg-surface rounded-lg shadow-card p-6">
-            <h2 className="text-xl font-semibold text-text-primary mb-4">Settings</h2>
-            <p className="text-text-secondary">Settings panel coming soon...</p>
-          </div>
+          <Settings 
+            user={user}
+            onUpdateUser={handleUpdateProfile}
+          />
         );
       default:
         return <Dashboard user={user} gigs={gigs} applications={applications} />;
     }
   };
 
+  // Show loading screen during initialization
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-bg flex items-center justify-center">
+        <LoadingSpinner 
+          size="xl" 
+          text="Loading GigFlow..." 
+          className="text-center"
+        />
+      </div>
+    );
+  }
+
   return (
-    <AppShell activeTab={activeTab} onTabChange={setActiveTab}>
-      {renderTabContent()}
-    </AppShell>
+    <ErrorBoundary>
+      <div className="min-h-screen bg-bg">
+        <AppShell activeTab={activeTab} onTabChange={setActiveTab}>
+          {renderTabContent()}
+        </AppShell>
+        <NotificationSystem />
+      </div>
+    </ErrorBoundary>
   );
 }
 
