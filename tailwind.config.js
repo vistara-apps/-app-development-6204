@@ -57,6 +57,7 @@ export default {
         'slide-down': 'slideDown 300ms ease-out',
         'scale-in': 'scaleIn 200ms ease-out',
         'bounce-subtle': 'bounceSubtle 600ms ease-out',
+        'shimmer': 'shimmer 2s linear infinite',
       },
       backdropBlur: {
         'xs': '2px',
