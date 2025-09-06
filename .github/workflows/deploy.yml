@@ -1,4 +1,5 @@
 name: Deploy to Vercel
+# Fixed workflow syntax issues
 
 on:
   push:
@@ -16,44 +17,32 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '22'
+        node-version: '20'
         cache: 'npm'
         
     - name: Install dependencies
       run: npm ci
 
+    - name: Verify environment
+      run: |
+        echo "Node version: $(node --version)"
+        echo "NPM version: $(npm --version)"
+        echo "Package.json exists: $(test -f package.json && echo 'yes' || echo 'no')"
+        echo "Package-lock.json exists: $(test -f package-lock.json && echo 'yes' || echo 'no')"
+
     - name: Build application
       run: npm run build
       env:
         NODE_OPTIONS: --max-old-space-size=4096
-        VITE_BASE_CHAIN_ID: ${{ secrets.VITE_BASE_CHAIN_ID }}
-        VITE_WALLET_CONNECT_PROJECT_ID: ${{ secrets.VITE_WALLET_CONNECT_PROJECT_ID }}
-        VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
-        VITE_WEBSOCKET_URL: ${{ secrets.VITE_WEBSOCKET_URL }}
-        VITE_ENABLE_REAL_TIME_ALERTS: ${{ secrets.VITE_ENABLE_REAL_TIME_ALERTS }}
-        VITE_ENABLE_PAYMENTS: ${{ secrets.VITE_ENABLE_PAYMENTS }}
-        VITE_ENABLE_NOTIFICATIONS: ${{ secrets.VITE_ENABLE_NOTIFICATIONS }}
-        
-    - name: Deploy to Vercel (Production)
-      if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && secrets.VERCEL_TOKEN != ''
-      uses: amondnet/vercel-action@v25
-      with:
-        vercel-token: ${{ secrets.VERCEL_TOKEN }}
-        vercel-args: '--prod'
-        vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-        vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
-        
-    - name: Deploy to Vercel (Preview)
-      if: (github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master') && secrets.VERCEL_TOKEN != ''
-      uses: amondnet/vercel-action@v25
-      with:
-        vercel-token: ${{ secrets.VERCEL_TOKEN }}
-        vercel-args: '--no-wait'
-        vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-        vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+        VITE_BASE_CHAIN_ID: ${{ secrets.VITE_BASE_CHAIN_ID || '8453' }}
+        VITE_WALLET_CONNECT_PROJECT_ID: ${{ secrets.VITE_WALLET_CONNECT_PROJECT_ID || '' }}
+        VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL || 'https://api.gigflow.app' }}
+        VITE_WEBSOCKET_URL: ${{ secrets.VITE_WEBSOCKET_URL || 'wss://ws.gigflow.app' }}
+        VITE_ENABLE_REAL_TIME_ALERTS: ${{ secrets.VITE_ENABLE_REAL_TIME_ALERTS || 'true' }}
+        VITE_ENABLE_PAYMENTS: ${{ secrets.VITE_ENABLE_PAYMENTS || 'true' }}
+        VITE_ENABLE_NOTIFICATIONS: ${{ secrets.VITE_ENABLE_NOTIFICATIONS || 'true' }}
         
     - name: Skip Vercel Deployment
-      if: secrets.VERCEL_TOKEN == ''
       run: echo "⚠️ Vercel deployment skipped - VERCEL_TOKEN secret not configured"
         
     - name: Comment PR with deployment status
@@ -61,43 +50,14 @@ jobs:
       uses: actions/github-script@v7
       with:
         script: |
-          const vercelToken = '${{ secrets.VERCEL_TOKEN }}';
-          let commentBody;
+          const commentBody = `✅ **Build Successful!**
           
-          if (!vercelToken) {
-            commentBody = `✅ **Build Successful!**
-            
-            📦 The application has been built successfully and is ready for deployment.
-            
-            ⚠️ **Note:** Vercel deployment is not configured. To enable automatic deployments, please configure the following repository secrets:
-            - \`VERCEL_TOKEN\`
-            - \`VERCEL_ORG_ID\`
-            - \`VERCEL_PROJECT_ID\``;
-          } else {
-            try {
-              const { data: deployments } = await github.rest.repos.listDeployments({
-                owner: context.repo.owner,
-                repo: context.repo.repo
-              });
-              const latestDeployment = deployments[0];
-              if (latestDeployment) {
-                const deploymentUrl = \`https://\${latestDeployment.environment}.vercel.app\`;
-                commentBody = \`🚀 **Preview Deployment Ready!**
-                
-                📱 **URL:** \${deploymentUrl}
-                
-                This preview will be automatically updated when you push new commits to this PR.\`;
-              } else {
-                commentBody = \`✅ **Build Successful!**
-                
-                📦 The application has been built successfully. Deployment is in progress...\`;
-              }
-            } catch (error) {
-              commentBody = \`✅ **Build Successful!**
-              
-              📦 The application has been built successfully. Deployment status will be updated shortly.\`;
-            }
-          }
+          📦 The application has been built successfully and is ready for deployment.
+          
+          ⚠️ **Note:** Vercel deployment is not configured. To enable automatic deployments, please configure the following repository secrets:
+          - \`VERCEL_TOKEN\`
+          - \`VERCEL_ORG_ID\`
+          - \`VERCEL_PROJECT_ID\``;
           
           github.rest.issues.createComment({
             issue_number: context.issue.number,

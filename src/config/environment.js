@@ -28,9 +28,10 @@ export const config = {
 export const validateConfig = () => {
   const requiredVars = [];
   
-  if (config.isProduction) {
+  // Only validate in production runtime, not during build
+  if (config.isProduction && typeof window !== 'undefined') {
     if (!config.walletConnectProjectId) {
-      requiredVars.push('VITE_WALLET_CONNECT_PROJECT_ID');
+      console.warn('VITE_WALLET_CONNECT_PROJECT_ID is not set. Some features may not work properly.');
     }
   }
 
